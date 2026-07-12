@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=development
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    command: python app.py  # Use the built-in dev server for local Docker run for ease of debug, or change to gunicorn for production.

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workspaces – SAJO</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <canvas id="particles-canvas"></canvas>
+
+    <nav class="navbar glass">
+        <div class="flex items-center gap-16">
+            <button id="sidebar-toggle" class="btn btn-ghost"><i class="fas fa-bars"></i></button>
+            <div style="font-weight: 800; font-size: 1.4rem; color: var(--accent);">SAJO</div>
+        </div>
+
+        <div style="flex:1;"></div>
+
+        <div class="flex items-center gap-16">
+            <button class="btn btn-primary btn-sm" onclick="openModal('create-workspace-modal')"><i class="fas fa-plus"></i> New Workspace</button>
+            <div id="theme-switcher" class="flex gap-8">
+                <div class="dot" onclick="setTheme('light')" style="background:#fff; width:12px; height:12px; border-radius:50%; cursor:pointer; border:1px solid #ddd;"></div>
+                <div class="dot" onclick="setTheme('dark')" style="background:#111; width:12px; height:12px; border-radius:50%; cursor:pointer;"></div>
+            </div>
+            <a href="/logout" class="btn btn-secondary btn-sm"><i class="fas fa-sign-out-alt"></i></a>
+        </div>
+    </nav>
+
+    <div class="app-layout">
+        <aside class="sidebar glass" id="sidebar">
+            <div class="mb-24">
+                <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 0 12px 10px;">Menu</div>
+                <a href="/dashboard" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="/editor" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-pen-nib"></i> Editor</a>
+                <a href="/library" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-book-open"></i> Library</a>
+                <a href="/workspaces" class="btn btn-ghost w-full" style="justify-content: flex-start; color: var(--accent);"><i class="fas fa-layer-group"></i> Workspaces</a>
+                <a href="/history" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-history"></i> History</a>
+                <a href="/settings" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-cog"></i> Settings</a>
+                <a href="/profile" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-user"></i> Profile</a>
+            </div>
+
+            <div>
+                <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 0 12px 10px;">Workspaces</div>
+                {% for ws in workspaces %}
+                <a href="/workspace/{{ ws.id }}" class="btn btn-ghost w-full" style="justify-content: flex-start; font-size: 0.82rem;">{{ ws.icon or '📁' }} {{ ws.name }}</a>
+                {% endfor %}
+            </div>
+        </aside>
+
+        <main class="main-content" id="main-content">
+            <header class="mb-24 fade-in-up">
+                <h1>Workspaces</h1>
+                <p style="color: var(--text-muted);">Coordinate your intelligence streams within dedicated environments.</p>
+            </header>
+
+            <div class="workspace-grid fade-in-up">
+                {% if workspaces %}
+                    {% for ws in workspaces %}
+                    <div class="card glass workspace-card" onclick="location.href='/workspace/{{ ws.id }}'">
+                        <div style="font-size: 2.5rem; margin-bottom: 12px;">{{ ws.icon or '📁' }}</div>
+                        <h3 style="margin: 0 0 8px;">{{ ws.name }}</h3>
+                        <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 20px; min-height: 2.4rem;">{{ ws.description or 'Personal intelligence workspace.' }}</p>
+                        
+                        <div class="flex items-center justify-between pt-16" style="border-top: 1px solid var(--border);">
+                            <div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-file-alt"></i> {{ ws.doc_count or 0 }} Documents</div>
+                            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deleteWorkspace('{{ ws.id }}')"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state" style="grid-column: 1/-1; padding: 100px 0; text-align: center;">
+                        <div style="font-size: 4rem; margin-bottom: 16px;">📁</div>
+                        <h2>No workspaces found</h2>
+                        <p>Create a dedicated space for your research and analysis.</p>
+                        <button class="btn btn-primary mt-16" onclick="openModal('create-workspace-modal')">Create Workspace</button>
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if team_workspaces %}
+            <div class="mt-40 mb-24 fade-in-up">
+                <h2>Collaborative Spaces</h2>
+                <p style="color: var(--text-muted);">Shared environments you have access to.</p>
+            </div>
+            <div class="workspace-grid fade-in-up">
+                {% for ws in team_workspaces %}
+                <div class="card glass workspace-card" onclick="location.href='/workspace/{{ ws.id }}'">
+                    <div style="font-size: 2.5rem; margin-bottom: 12px;">{{ ws.icon or '👥' }}</div>
+                    <h3 style="margin: 0 0 8px;">{{ ws.name }}</h3>
+                    <p style="color: var(--text-muted); font-size: 0.82rem; margin-bottom: 20px;">Owned by {{ ws.owner_name }}</p>
+                    <div class="flex items-center justify-between pt-16" style="border-top: 1px solid var(--border);">
+                        <div style="font-size: 0.75rem; color: var(--text-muted);"><i class="fas fa-users"></i> Team Intelligence</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">{{ ws.doc_count or 0 }} Docs</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="create-workspace-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;">
+        <div class="card glass" style="width: 400px; padding: 30px;">
+            <h3 class="mb-24">Create Workspace</h3>
+            <div class="form-group mb-16">
+                <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">WORKSPACE NAME</label>
+                <input type="text" id="ws-name" class="form-input" placeholder="e.g. Project Neural">
+            </div>
+            <div class="form-group mb-16">
+                <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">ICON (EMOJI)</label>
+                <input type="text" id="ws-icon" class="form-input" value="📁">
+            </div>
+            <div class="form-group mb-24">
+                <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">DESCRIPTION</label>
+                <textarea id="ws-desc" class="form-input" style="min-height: 100px;" placeholder="Purpose of this workspace..."></textarea>
+            </div>
+            <div class="flex gap-12">
+                <button class="btn btn-secondary flex-1" onclick="closeModal('create-workspace-modal')">Cancel</button>
+                <button class="btn btn-primary flex-1" onclick="submitCreateWorkspace()">Generate Space</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command Palette (Ctrl+K) -->
+    <div id="command-palette" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:3000; padding:100px 20px 20px; align-items:flex-start;">
+        <div class="card glass mx-auto" style="max-width: 650px; width:100%; padding: 24px;">
+            <div class="flex items-center gap-16 mb-24 pb-16" style="border-bottom: 1px solid var(--border);">
+                <i class="fas fa-search" style="color: var(--accent); font-size: 1.2rem;"></i>
+                <input type="text" id="palette-search" placeholder="Search knowledge network (Ctrl+K)..." style="background:transparent; border:none; outline:none; color:#fff; font-size:1.4rem; width:100%; font-weight: 300;" oninput="globalSearch(this.value)">
+                <div style="font-family: monospace; font-size: 0.7rem; color: var(--text-muted); background: var(--border); padding: 4px 8px; border-radius: 4px;">ESC</div>
+            </div>
+            <div id="command-results" style="max-height: 450px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <script src="/static/particles.js"></script>
+    <script src="/static/script.js"></script>
+    <script>
+        window.openModal = function(id) { document.getElementById(id).style.display = 'flex'; }
+        window.closeModal = function(id) { document.getElementById(id).style.display = 'none'; }
+
+        async function submitCreateWorkspace() {
+            const name = document.getElementById('ws-name').value;
+            const icon = document.getElementById('ws-icon').value;
+            const description = document.getElementById('ws-desc').value;
+
+            if(!name) return showFlash('Name is required', 'error');
+
+            try {
+                const res = await fetch('/api/workspace/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, icon, description})
+                });
+                const data = await res.json();
+                if(data.success) {
+                    location.reload();
+                }
+            } catch(e) { showFlash('Failed to create workspace', 'error'); }
+        }
+
+        async function deleteWorkspace(id) {
+            if(!confirm('Permanently delete this workspace? Documents will be unassigned.')) return;
+            try {
+                const res = await fetch(`/api/workspace/delete/${id}`, { method: 'POST' });
+                const data = await res.json();
+                if(data.success) location.reload();
+            } catch(e) { showFlash('Failed to delete', 'error'); }
+        }
+    </script>
+</body>
+</html>

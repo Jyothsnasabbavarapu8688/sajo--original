@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligence Library – SAJO</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    <canvas id="particles-canvas"></canvas>
+
+    <nav class="navbar glass">
+        <div class="flex items-center gap-16">
+            <button id="sidebar-toggle" class="btn btn-ghost"><i class="fas fa-bars"></i></button>
+            <div style="font-weight: 800; font-size: 1.4rem; color: var(--accent);">SAJO</div>
+        </div>
+
+        <div style="flex: 1; max-width: 500px; margin: 0 40px; position: relative;">
+            <i class="fas fa-search" style="position: absolute; left: 14px; top: 12px; color: var(--text-muted);"></i>
+            <input type="text" id="library-search" class="form-input" style="padding-left: 40px;" placeholder="Search library (Ctrl+K)..." oninput="filterLibrary(this.value)">
+        </div>
+
+        <div class="flex items-center gap-16">
+            <a href="/editor" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> New Intelligence</a>
+            <div id="theme-switcher" class="flex gap-8">
+                <div class="dot" onclick="setTheme('light')" style="background:#fff; width:12px; height:12px; border-radius:50%; cursor:pointer; border:1px solid #ddd;"></div>
+                <div class="dot" onclick="setTheme('dark')" style="background:#111; width:12px; height:12px; border-radius:50%; cursor:pointer;"></div>
+            </div>
+            <a href="/logout" class="btn btn-secondary btn-sm"><i class="fas fa-sign-out-alt"></i></a>
+        </div>
+    </nav>
+
+    <div class="app-layout">
+        <aside class="sidebar glass" id="sidebar">
+            <div class="mb-24">
+                <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 0 12px 10px;">Menu</div>
+                <a href="/dashboard" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="/editor" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-pen-nib"></i> Editor</a>
+                <a href="/library" class="btn btn-ghost w-full" style="justify-content: flex-start; color: var(--accent);"><i class="fas fa-book-open"></i> Library</a>
+                <a href="/workspaces" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-layer-group"></i> Workspaces</a>
+                <a href="/history" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-history"></i> History</a>
+                <a href="/settings" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-cog"></i> Settings</a>
+                <a href="/profile" class="btn btn-ghost w-full" style="justify-content: flex-start;"><i class="fas fa-user"></i> Profile</a>
+            </div>
+
+            <div>
+                <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 0 12px 10px;">Workspaces</div>
+                {% for ws in workspaces %}
+                <a href="/workspace/{{ ws.id }}" class="btn btn-ghost w-full" style="justify-content: flex-start; font-size: 0.82rem;">{{ ws.icon }} {{ ws.name }}</a>
+                {% endfor %}
+            </div>
+        </aside>
+
+        <main class="main-content" id="main-content">
+            <header class="mb-24 fade-in-up">
+                {% if current_workspace %}
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div style="font-size: 0.8rem; font-weight: 800; color: var(--accent); margin-bottom: 4px;">WORKSPACE: {{ current_workspace.icon or '📁' }}</div>
+                        <h1>{{ current_workspace.name }}</h1>
+                        <p style="color: var(--text-muted);">{{ current_workspace.description or 'Collaborative intelligence stream.' }}</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="openInviteModal()">
+                        <i class="fas fa-user-plus"></i> Invite Team
+                    </button>
+                </div>
+                {% else %}
+                <h1>Intelligence Library</h1>
+                <p style="color: var(--text-muted);">Your collective knowledge repository.</p>
+                {% endif %}
+            </header>
+
+            <div class="library-grid fade-in-up">
+                {% if documents %}
+                    {% for doc in documents %}
+                    <div class="card glass library-card" data-search="{{ doc.title.lower() }}">
+                        <div style="color: var(--accent); font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">DOCUMENT</div>
+                        <h3 style="margin: 0 0 12px;">{{ doc.title }}</h3>
+                        <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; height: 3.2rem; overflow: hidden;">{{ doc.summary if doc.summary else 'Processing scheduled...' }}</p>
+                        
+                        <div class="flex items-center justify-between mt-16 pt-16" style="border-top: 1px solid var(--border);">
+                            <div style="font-size: 0.72rem; color: var(--text-muted);">{{ doc.updated_at }}</div>
+                            <div class="flex gap-4">
+                                <a href="/editor?id={{ doc.id }}" class="btn btn-ghost btn-sm" title="Edit Intelligence"><i class="fas fa-pen-nib"></i></a>
+                                <button class="btn btn-ghost btn-sm" title="Share Intelligence"><i class="fas fa-share-alt"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state" style="grid-column: 1/-1; padding: 100px 0; text-align: center;">
+                        <div style="font-size: 4rem; margin-bottom: 16px;">📚</div>
+                        <h2>Your library is empty</h2>
+                        <p>Generate some intelligence reports to populate your knowledge base.</p>
+                        <a href="/editor" class="btn btn-primary mt-16">Launch Editor</a>
+                    </div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+
+    <!-- Invite Modal -->
+    <div id="invite-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center;">
+        <div class="card glass p-32" style="width: 400px;">
+            <h3 class="mb-24">Invite Practitioner</h3>
+            <div class="form-group mb-24">
+                <label class="form-label">Practitioner Email</label>
+                <input type="email" id="invite-email" class="form-input" placeholder="name@company.com">
+            </div>
+            <div class="flex gap-12">
+                <button class="btn btn-secondary flex-1" onclick="closeInviteModal()">Cancel</button>
+                <button class="btn btn-primary flex-1" onclick="submitInvite()">Add to Network</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/particles.js"></script>
+    <script src="/static/script.js"></script>
+    <script>
+        function filterLibrary(q) {
+            const query = q.toLowerCase();
+            document.querySelectorAll('.library-card').forEach(card => {
+                const title = card.getAttribute('data-search');
+                card.style.display = title.includes(query) ? '' : 'none';
+            });
+        }
+
+        function openInviteModal() { document.getElementById('invite-modal').style.display = 'flex'; }
+        function closeInviteModal() { document.getElementById('invite-modal').style.display = 'none'; }
+
+        async function submitInvite() {
+            const wsId = "{{ current_workspace.id if current_workspace else '' }}";
+            if(!wsId) return;
+            
+            const email = document.getElementById('invite-email').value;
+            const res = await fetch('/api/workspace/invite', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ workspace_id: wsId, email: email })
+            });
+            const data = await res.json();
+            if(data.success) {
+                showFlash('Practitioner added successfully', 'success');
+                closeInviteModal();
+            } else {
+                showFlash(data.error, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

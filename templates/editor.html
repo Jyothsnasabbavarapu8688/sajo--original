@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Editor – SAJO</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- D3 for Knowledge Graph -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Socket.IO for Real-time Collaboration -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="fade-in">
+    <canvas id="particles-canvas"></canvas>
+
+    <nav class="navbar glass">
+        <div class="flex items-center gap-16">
+            <a href="/dashboard" class="btn btn-ghost" title="Back to Dashboard"><i class="fas fa-arrow-left"></i></a>
+            <div id="editor-status" class="status-dot"></div>
+            <h2 id="doc-display-title" style="font-size: 1.1rem; font-weight: 800;">{{ document.title if document else 'New Intelligence' }}</h2>
+        </div>
+
+        <div style="flex:1;"></div>
+
+        <div class="flex items-center gap-16">
+            <div id="collab-users" class="flex items-center" style="margin-right: 12px;"></div>
+            <button class="btn btn-primary btn-glow" onclick="saveKnowledge()" id="process-btn" title="Click this to summarize your text">
+                <i class="fas fa-magic"></i> Analyze & Summarize
+            </button>
+
+            <div class="dropdown" style="position: relative;">
+                <button class="btn btn-secondary btn-sm" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'block' ? 'none' : 'block'"><i class="fas fa-download"></i></button>
+                <div class="dropdown-menu glass" style="display:none; position:absolute; right:0; top:40px; width:160px; z-index:100; padding:8px; border-radius:8px; border:1px solid var(--border);">
+                    <a href="#" onclick="exportFile('pdf')" class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start;"><i class="fas fa-file-pdf"></i> PDF</a>
+                    <a href="#" onclick="exportFile('md')" class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start;"><i class="fas fa-file-code"></i> Markdown</a>
+                </div>
+            </div>
+            <button class="btn btn-accent btn-sm" onclick="openShare()"><i class="fas fa-share-alt"></i></button>
+        </div>
+    </nav>
+
+    <div class="app-layout">
+        <aside class="sidebar glass" id="sidebar">
+            <div class="sidebar-section">
+                <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 0 12px 10px;">Intelligence Tabs</div>
+                <div class="tabs-vertical">
+                    <button class="tab-btn active" onclick="switchEditorTab('summary', this)">
+                        <i class="fas fa-align-left"></i> Summary
+                        <span class="tab-indicator"></span>
+                    </button>
+                    <button class="tab-btn" onclick="switchEditorTab('graph', this)">
+                        <i class="fas fa-project-diagram"></i> Knowledge Graph
+                    </button>
+                    <button class="tab-btn" onclick="switchEditorTab('qa', this)">
+                        <i class="fas fa-question-circle"></i> Semantic Q&A
+                    </button>
+                    <button class="tab-btn" onclick="switchEditorTab('quiz', this)">
+                        <i class="fas fa-lightbulb"></i> Adaptive Quiz
+                    </button>
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="margin-top: auto;">
+                <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 0 12px 10px;">Properties</div>
+                <div class="form-group">
+                    <label class="form-label">Active Workspace</label>
+                    <select id="workspace-select" class="form-input">
+                        {% for ws in workspaces %}
+                        <option value="{{ ws.id }}">{{ ws.icon }} {{ ws.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="btn btn-secondary w-full" id="voice-btn" onclick="toggleVoice()">
+                    <i class="fas fa-microphone"></i> Start Recording
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content flex" style="padding: 0;">
+            <div class="editor-pane flex-1">
+                <div class="rich-toolbar glass">
+                    <button class="tool-btn" onclick="execCommand('bold')" title="Bold"><i class="fas fa-bold"></i></button>
+                    <button class="tool-btn" onclick="execCommand('italic')" title="Italic"><i class="fas fa-italic"></i></button>
+                    <button class="tool-btn" onclick="execCommand('insertUnorderedList')" title="Bullets"><i class="fas fa-list-ul"></i></button>
+                    <button class="tool-btn" onclick="execCommand('justifyLeft')" title="Align Left"><i class="fas fa-align-left"></i></button>
+                    <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
+                    <button class="tool-btn" onclick="execCommand('createLink', prompt('Enter link:'))" title="Link"><i class="fas fa-link"></i></button>
+                    <button class="tool-btn" onclick="document.getElementById('doc-upload-input').click()" title="Upload Intel"><i class="fas fa-file-upload"></i></button>
+                    <input type="file" id="doc-upload-input" hidden onchange="handleFileUpload(this)" accept=".pdf,.docx,.txt">
+                    <div style="width:1px; height:20px; background:var(--border); margin:0 8px;"></div>
+                    <button class="tool-btn" onclick="adjustZoom(-0.15)" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
+                    <button class="tool-btn" onclick="adjustZoom(0.15)" title="Zoom In"><i class="fas fa-search-plus"></i></button>
+                    <button class="btn btn-secondary btn-sm" onclick="loadSample()" style="margin-left: 12px; font-size: 0.75rem; height: 32px; border-radius: 6px;"><i class="fas fa-lightbulb"></i> Load Sample Content</button>
+                    <button class="tool-btn" style="margin-left: auto;" onclick="toggleFocusMode()" title="Focus Mode"><i class="fas fa-expand"></i></button>
+
+
+                </div>
+                
+                <div class="editor-body-wrapper">
+                    <textarea id="doc-title-input" class="editor-title-field" placeholder="Enter Subject / Title here..." rows="1" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'">{{ document.title if document else '' }}</textarea>
+                    <div id="text-input" class="rich-editor-surface" contenteditable="true" placeholder="Paste your paragraphs, reports, or articles here...">{{ document.content | safe if document else '' }}</div>
+                </div>
+
+                
+                <div class="flex items-center justify-between p-12 glass" style="border-top:1px solid var(--border); font-size: 0.75rem; color:var(--text-muted);">
+                    <div id="word-count">0 words</div>
+                    <div id="save-indicator"><i class="fas fa-check-circle"></i> Ready</div>
+                </div>
+            </div>
+
+            <div class="results-pane glass shadow-heavy">
+                <div id="editor-tab-summary" class="editor-tab-content active">
+                    <h3 class="res-title">Executive Insight</h3>
+                    <div id="summary-result" class="res-body" contenteditable="true" oninput="showFlash('Elite insight refined.', 'info')">
+                        {{ document.summary if document and document.summary else 'Your Elite Insight is ready to be generated. Click "Analyze & Summarize" above to begin.' }}
+                    </div>
+
+
+
+                    
+                    <h3 class="res-title" style="margin-top: 24px;">Core Dimensions</h3>
+                    <div id="bullets-result" class="res-body" contenteditable="true">
+                        <ul class="knowledge-list">
+                            {% if document and document.bullets %}
+                                {% set bullet_list = document.bullets | from_json %}
+                                {% for b in bullet_list %}
+                                    <li class="knowledge-item" style="padding:12px; border-radius:8px; background:var(--surface); margin-bottom:8px; border:1px solid var(--border);">{{ b }}</li>
+                                {% endfor %}
+                            {% endif %}
+                        </ul>
+                    </div>
+
+
+                </div>
+
+                <div id="editor-tab-graph" class="editor-tab-content">
+                    <h3 class="res-title">Abstract Concept Map</h3>
+                    <div id="graph-container" class="knowledge-graph-box"></div>
+                </div>
+
+                <div id="editor-tab-qa" class="editor-tab-content">
+                    <h3 class="res-title">Knowledge Query</h3>
+                    <div class="flex gap-8 mb-16">
+                        <input type="text" id="qa-input" class="form-input" placeholder="Ask about this intelligence...">
+                        <button class="btn btn-primary" onclick="askQuestion()"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                    <div id="qa-result" class="res-body"></div>
+                </div>
+
+                <div id="editor-tab-quiz" class="editor-tab-content">
+                    <div class="flex justify-between items-center mb-16">
+                        <h3 class="res-title">Knowledge Validation</h3>
+                        <button class="btn btn-accent btn-sm" onclick="generateAdaptiveQuiz()">Refresh</button>
+                    </div>
+                    <div id="quiz-container"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-share" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center;">
+        <div class="card glass p-32" style="width: 400px; text-align: center;">
+            <i class="fas fa-share-alt mb-16" style="font-size: 2.5rem; color: var(--accent);"></i>
+            <h3>Secure Collaboration</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px;">Share this intelligence with your team.</p>
+            <input type="text" id="share-link-field" class="form-input mb-16" readonly>
+            <div class="flex gap-8">
+                <button class="btn btn-primary flex-1" onclick="copyShareLink()">Copy Link</button>
+                <button class="btn btn-secondary" onclick="closeModal('modal-share')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command Palette (Ctrl+K) -->
+    <div id="command-palette" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:3000; padding:100px 20px 20px; align-items:flex-start;">
+        <div class="card glass mx-auto" style="max-width: 650px; width:100%; padding: 24px;">
+            <div class="flex items-center gap-16 mb-24 pb-16" style="border-bottom: 1px solid var(--border);">
+                <i class="fas fa-search" style="color: var(--accent); font-size: 1.2rem;"></i>
+                <input type="text" id="palette-search" placeholder="Search knowledge network (Ctrl+K)..." style="background:transparent; border:none; outline:none; color:#fff; font-size:1.4rem; width:100%; font-weight: 300;" oninput="globalSearch(this.value)">
+                <div style="font-family: monospace; font-size: 0.7rem; color: var(--text-muted); background: var(--border); padding: 4px 8px; border-radius: 4px;">ESC</div>
+            </div>
+            <div id="command-results" style="max-height: 450px; overflow-y: auto;"></div>
+        </div>
+    </div>
+    <script src="/static/particles.js"></script>
+    <script src="/static/script.js"></script>
+    <script>
+        const CURRENT_DOC_ID = "{{ document.id if document else '' }}";
+        const CURRENT_USER = "{{ user.username if user else 'Practitioner' }}";
+
+        // Initialize features
+        window.initAutoSave(CURRENT_DOC_ID);
+        if (CURRENT_DOC_ID) {
+            window.joinCollab(CURRENT_DOC_ID);
+            window.renderKnowledgeGraph(CURRENT_DOC_ID, 'graph-container');
+        }
+
+
+        let currentZoom = 1.15;
+        function adjustZoom(delta) {
+            currentZoom = Math.max(0.5, Math.min(3, currentZoom + delta));
+            document.getElementById('text-input').style.fontSize = `${currentZoom}rem`;
+            showFlash(`Intelligence magnification: ${Math.round(currentZoom * 100)}%`, 'info');
+        }
+
+        function switchEditorTab(tab, btn) {
+
+            document.querySelectorAll('.editor-tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(`editor-tab-${tab}`).classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            if(tab === 'graph' && CURRENT_DOC_ID) {
+                window.renderKnowledgeGraph(CURRENT_DOC_ID, 'graph-container');
+            }
+        }
+
+        function loadSample() {
+            const sampleTitle = "The Future of Solar Energy";
+            const sampleContent = "Solar energy is radiant light and heat from the Sun that is harnessed using a range of ever-evolving technologies such as solar heating, photovoltaics, solar thermal energy, solar architecture, molten salt power plants and artificial photosynthesis.\n\nIt is an important source of renewable energy and its technologies are broadly characterized as either passive solar or active solar depending on how they capture and distribute solar energy or convert it into solar power. Active solar techniques include the use of photovoltaic systems, concentrated solar power and solar water heating to harness the energy. Passive solar techniques include orienting a building to the Sun, selecting materials with favorable thermal mass or light-dispersing properties, and designing spaces that naturally circulate air.\n\nThe large magnitude of solar energy available makes it a highly appealing source of electricity. The United Nations Development Programme in its 2000 World Energy Assessment found that the annual potential of solar energy was 1,575–49,837 exajoules (EJ). This is several times larger than the total world energy consumption, which was 559.8 EJ in 2012.";
+            
+            document.getElementById('doc-title-input').value = sampleTitle;
+            document.getElementById('text-input').innerText = sampleContent;
+            showFlash('Sample content loaded. Click "Analyze & Summarize" to test!', 'success');
+        }
+
+        async function saveKnowledge() {
+            let content = document.getElementById('text-input').innerText;
+            let title = document.getElementById('doc-title-input').value;
+            const ws_id = document.getElementById('workspace-select').value;
+            const btn = document.getElementById('process-btn');
+
+            // If main content is empty but title is long, the user likely pasted into the title.
+            if(!content.trim() && title.length > 50) {
+                content = title;
+                title = title.substring(0, 50) + "..."; // Truncate title for DB
+            }
+
+            if(!content.trim()) return showFlash('No content to analyze. Please paste text into the editor.', 'error');
+            
+            try {
+                const summaryBox = document.getElementById('summary-result');
+                const bulletBox = document.getElementById('bullets-result');
+                const wordCount = content.trim().split(/\s+/).length;
+                
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-magic fa-spin"></i> Analyzing...';
+                
+                summaryBox.innerHTML = `<div style="text-align:center;"><i class="fas fa-brain fa-spin"></i><br><br>Ingesting ${wordCount} words of intelligence...</div>`;
+                bulletBox.innerHTML = '';
+
+                const response = await fetch('/api/process-knowledge', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        content: content, 
+                        title, 
+                        workspace_id: ws_id, 
+                        id: CURRENT_DOC_ID 
+                    })
+                });
+
+                
+                const res = await response.json();
+                
+                if(res.success) {
+                    showFlash('Elite intelligence acquired', 'success');
+                    typeResult(summaryBox, res.data.summary);
+                    bulletBox.innerHTML = `<ul class="knowledge-list">${res.data.bullets.map(b => `<li class="knowledge-item" style="padding:12px; border-radius:8px; background:var(--surface); margin-bottom:8px; border:1px solid var(--border);">${b}</li>`).join('')}</ul>`;
+                    if(!CURRENT_DOC_ID) {
+                        setTimeout(() => location.href = `/editor?id=${res.id}`, 3000);
+                    }
+                } else {
+                    throw new Error(res.error || 'Intelligence failure');
+                }
+
+
+            } catch(e) {
+                console.error("AI processing error:", e);
+                showFlash('Network or Intelligence failure', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic"></i> Analyze & Summarize';
+            }
+        }
+
+
+        function openShare() {
+            document.getElementById('modal-share').style.display = 'flex';
+            document.getElementById('share-link-field').value = window.location.href;
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function copyShareLink() {
+            const field = document.getElementById('share-link-field');
+            field.select();
+            document.execCommand('copy');
+            showFlash('Intel source shared to clipboard', 'success');
+            closeModal('modal-share');
+        }
+
+        async function handleFileUpload(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const ws_id = document.getElementById('workspace-select').value;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('workspace_id', ws_id);
+
+            showFlash('Ingesting document intelligence...', 'info');
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if(data.success) {
+                    document.getElementById('text-input').innerText = data.content;
+                    document.getElementById('doc-title-input').value = file.name.split('.')[0];
+                    showFlash('Knowledge acquired successfully', 'success');
+                }
+            } catch(e) { showFlash('Acquisition failed', 'error'); }
+        }
+    </script>
+</body>
+</html>
