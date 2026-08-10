@@ -25,4 +25,4 @@ ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 
 # Command to run the app using eventlet with gunicorn
-CMD ["gunicorn", "--worker-class", "eventlet", "-w", "1", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["sh", "-c", "gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:${PORT:-5000} app:app"]
